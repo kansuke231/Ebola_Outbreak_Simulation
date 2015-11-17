@@ -8,7 +8,10 @@ type status =
 	| Infectious
 	| Removed
 
-
+type sector_status = 
+  | A  (* Infected *)
+  | B
+  | C  (* Clean and no adjacent*)
 
 (********************************************************************)
 (* Direction                                                        *)
@@ -56,13 +59,16 @@ type 'a neighborhood = 'a info list
 let maxx = ref 300
 let maxy = ref 300
 
+let sectormaxx = ref 10
+let sectormaxy = ref 10
+
+let sectorsize = ref (!maxx / !sectormaxx)
+
 let nox = ref false
-let zoom = ref 2
+let zoom = ref 3
 
 let delta = 3 (* steps for E -> I *)
 let gamma = 15 (* steps for I -> R *)
-
-
 
 (**************************************************************************)
 (* cell                                                                   *)
@@ -73,11 +79,13 @@ type 'a cell =
     { cell_x: int;
       cell_y: int;
       cell_activation: ('a info, 'a info list) event;
+      compliant: bool;
       mutable cell_status: status;
-      mutable cell_neighborhood: (dir * ('a info , 'a info list) event) list;
+      mutable cell_neighborhood: ((dir * 'a cell) list);
       mutable time: int;
       mutable exposed_time: int;
       mutable infectious_time: int;
+(*       mutable sector_status: sector_status; *)
     }
 
 let make_info origin cell =
@@ -92,8 +100,9 @@ let new_cell x y activation status =
     cell_status = status;
     cell_neighborhood = [];
     time = 0;
-	exposed_time = 0;
-	infectious_time = 0;
+	  exposed_time = 0;
+	  infectious_time = 0;
+    compliant = if (Random.float 1.0) < 0.4 then true else false;
   }
 
 let draw_cell_gen color_of_cell c =
@@ -108,6 +117,25 @@ let color_of_status s =
   | Removed -> Graphics.white
 
 (**************************************************************************)
+(* sector                                                                   *)
+(**************************************************************************)
+
+(* type 'a sector = 
+    {
+    mutable sector_status: sector_status;
+    cell_list: ('a cell, 'a cell list);
+    sector_x: int;
+    sector_y: int;
+    } *)
+
+(* let new_sector x y = 
+ *)
+(* 
+let draw_sector s = 
+  Graphics.set_color Graphics.black;
+  Graphics.draw_rect (s.sector_x * !sectorsize) (s.sector_y * !sectorsize) !sectorsize !sectorsize *)
+
+(**************************************************************************)
 (* neighborhood functions                                                 *)
 (**************************************************************************)
 let get_von_neumann_neighbors cell cell_array =
@@ -120,6 +148,8 @@ let get_von_neumann_neighbors cell cell_array =
   if y+1 < !maxy then neighbors := (Up, cell_array.(x).(y+1)) :: !neighbors;
   !neighbors
 
+(* let sector_neighbors sector sector_array =  *)
+
 
 (**************************************************************************)
 (* cell process                                                           *)
@@ -128,10 +158,10 @@ let get_von_neumann_neighbors cell cell_array =
 let rec activate_neighborhood self neighbors =
   match neighbors with
   | [] -> ()
-  | (dir, activation_sig) :: neighbors ->
+  | (dir, cell) :: neighbors' ->
       let info = make_info (opposite dir) self in
-      emit activation_sig info;
-      activate_neighborhood self neighbors
+      emit cell.cell_activation info;
+      activate_neighborhood self neighbors'
       (*Note that there is not "pause". which means this recursive function emits
         a signal for eveyry neighbor of self and awaiting this signal catches a list of
         signals emitted during the instant (so it's list)*)
@@ -144,7 +174,11 @@ let rec long_range_interaction cell cell_array =
   	let rand_x = Random.int maxx in
   	let rand_y = Random.int maxy in
   	if (x <> rand_x)&&(y <> rand_y) 
-  		then (Long_Lange, cell_array.(rand_x).(rand_y))
+  		then
+      let other = cell_array.(rand_x).(rand_y) in
+      let other_activation = other.cell_activation in
+      emit cell.cell_activation (make_info Long_Lange other);
+      emit other_activation (make_info Long_Lange cell)
   	else long_range_interaction cell cell_array
 
 
@@ -152,14 +186,14 @@ let process cell draw_cell get_neighbors cell_behavior
     x y status_init cell_array =
   signal activation in
   let self = new_cell x y activation status_init in
-  cell_array.(x).(y) <- activation; (* At first, cell_array.(x).(y) contains a signal "temp". This line puts a new signal "activation"*)
+  cell_array.(x).(y) <- self; (* At first, cell_array.(x).(y) contains a signal "temp". This line puts a new signal "activation"*)
   draw_cell self;
   pause;
   self.cell_neighborhood <- get_neighbors self cell_array;
   loop
   	(*interaction with four neighbors in a day*)
   	let faraway = long_range_interaction self cell_array in 
-    activate_neighborhood self (self.cell_neighborhood @ [faraway]);
+    activate_neighborhood self (self.cell_neighborhood);
     pause;
     let neighbors = pre ?activation in
     cell_behavior self neighbors;
@@ -171,10 +205,17 @@ let process cell draw_cell get_neighbors cell_behavior
 (**************************************************************************)
 (* cell behaviors                                                         *)
 (**************************************************************************)
-let ebola cell neighbors =
+let ebola cell neighbors = (* pre-T0 *)
 	let result = ref Susceptible in 
 	List.iter
-	  (fun info -> if (info.status = Infectious)&& Random.float 1.0 < 0.1 then result := Exposed)
+	  (fun info -> 
+      match info with
+      | {origin = Long_Lange; status=Infectious} -> if Random.float 1.0 < 0.04 then result := Exposed
+      | {origin = _; status=Infectious} -> if Random.float 1.0 < 0.1 then result := Exposed
+      | {origin = _; status=_} -> ()
+)
+(*       if (info.origin = Long_Lange)&&(info.status = Infectious)&&Random.float 1.0 < 0.004 then result := Exposed
+      else if (info.status = Infectious)&& Random.float 1.0 < 0.1 then result := Exposed) *)
 	  neighbors;
 	  cell.cell_status <-
 	  	match cell.cell_status with
@@ -183,7 +224,7 @@ let ebola cell neighbors =
 	  	| Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
 	  	| Removed -> 	 Removed
 	  	
-
+(* Post T0 *)
 
 (**************************************************************************)
 (* cellular automaton                                                     *)
@@ -191,10 +232,13 @@ let ebola cell neighbors =
 let cell_array_create tmp =
   Array.make_matrix !maxx !maxy tmp
 
+let sector_array_create tmp =
+  Array.make_matrix !sectormaxx !sectormaxy tmp
+
 let get_status i j =
 	(* For testing the long-range infection *)
 	(*if (i = 100)&&(j = 100) then Infectious, () else Susceptible, ()*)
-	if Random.float 1.0 < 0.015 then Infectious else Susceptible
+	if Random.float 1.0 < 0.0005 then Infectious else Susceptible
 
 
 let process cellular_automaton_start
@@ -218,8 +262,9 @@ let process main =
 			       (string_of_int (!maxy * !zoom)));
     Graphics.auto_synchronize false;
 
-	signal tmp in
-		let cell_array = cell_array_create tmp in
+  signal tmp in
+	let dummy = (new_cell 5 5 tmp Susceptible) in
+		let cell_array = cell_array_create dummy in
 		let draw = draw_cell_gen color_of_status
 		in
 		run (cellular_automaton_start
@@ -227,7 +272,7 @@ let process main =
 		       get_von_neumann_neighbors
 		       get_status
 		       ebola
-	       	   cell_array);
+	       	 cell_array);
 		||
 		loop
 			ignore (Graphics.wait_next_event [Graphics.Poll]);
