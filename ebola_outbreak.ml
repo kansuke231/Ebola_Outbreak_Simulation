@@ -110,7 +110,46 @@ let draw_cell_gen =
                         (c__val_rml_23).cell_x (Pervasives.(!) zoom))
                       (Pervasives.( * )
                         (c__val_rml_23).cell_y (Pervasives.(!) zoom))
-                      (Pervasives.(!) zoom) (Pervasives.(!) zoom)
+                      (Pervasives.(!) zoom) (Pervasives.(!) zoom);
+                    if
+                      Pervasives.(=)
+                        (Pervasives.(mod)
+                          (c__val_rml_23).cell_x (Pervasives.(!) sectormaxx))
+                        (0)
+                      then
+                      (Graphics.set_color Graphics.black;
+                         Graphics.moveto
+                           (Pervasives.( * )
+                             (c__val_rml_23).cell_x (Pervasives.(!) zoom))
+                           (Pervasives.( * )
+                             (c__val_rml_23).cell_y (Pervasives.(!) zoom));
+                        Graphics.lineto
+                          (Pervasives.( * )
+                            (c__val_rml_23).cell_x (Pervasives.(!) zoom))
+                          (Pervasives.( * )
+                            (Pervasives.(+) (c__val_rml_23).cell_y 1)
+                            (Pervasives.(!) zoom)))
+                      else
+                      if
+                        Pervasives.(=)
+                          (Pervasives.(mod)
+                            (c__val_rml_23).cell_y
+                            (Pervasives.(!) sectormaxy))
+                          (0)
+                        then
+                        (Graphics.set_color Graphics.black;
+                           Graphics.moveto
+                             (Pervasives.( * )
+                               (c__val_rml_23).cell_x (Pervasives.(!) zoom))
+                             (Pervasives.( * )
+                               (c__val_rml_23).cell_y (Pervasives.(!) zoom));
+                          Graphics.lineto
+                            (Pervasives.( * )
+                              (Pervasives.(+) (c__val_rml_23).cell_x 1)
+                              (Pervasives.(!) zoom))
+                            (Pervasives.( * )
+                              (c__val_rml_23).cell_y (Pervasives.(!) zoom)))
+                        else ()
               )
         ) 
 ;;

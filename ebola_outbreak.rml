@@ -110,7 +110,18 @@ let new_cell x y activation status sector_id =
 
 let draw_cell_gen color_of_cell c =
   Graphics.set_color (color_of_cell c);
-  Graphics.fill_rect (c.cell_x * !zoom) (c.cell_y * !zoom) !zoom !zoom
+  Graphics.fill_rect (c.cell_x * !zoom) (c.cell_y * !zoom) !zoom !zoom;
+
+  if c.cell_x mod !sectormaxx = 0 then (
+    Graphics.set_color Graphics.black;
+    Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
+    Graphics.lineto ((c.cell_x ) * !zoom) ((c.cell_y+ 1) * !zoom) 
+  )
+  else if c.cell_y mod !sectormaxy = 0 then (
+    Graphics.set_color Graphics.black;
+    Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
+    Graphics.lineto ((c.cell_x + 1) * !zoom) ((c.cell_y) * !zoom) 
+  )
 
 let color_of_status s =
   match s.cell_status with
@@ -227,8 +238,7 @@ let ebola cell interactions = (* pre-T0 *)
           else if (Random.float 1.0 < 0.001) then result := Exposed
       | {origin = _; status = _; sector = _} -> ()
     )
-(*       if (info.origin = Long_Lange)&&(info.status = Infectious)&&Random.float 1.0 < 0.004 then result := Exposed
-      else if (info.status = Infectious)&& Random.float 1.0 < 0.1 then result := Exposed) *)
+
 	  interactions;
 	  cell.cell_status <-
 	  	match cell.cell_status with
