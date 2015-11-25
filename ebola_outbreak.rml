@@ -46,6 +46,7 @@ let opposite dir =
 type 'a info =
     { origin: dir;
       status: status;
+      sector: int * int;
     }
 (**************************************************************************)
 (* neighborhood                                                           *)
@@ -85,15 +86,16 @@ type 'a cell =
       mutable time: int;
       mutable exposed_time: int;
       mutable infectious_time: int;
-(*       mutable sector_status: sector_status; *)
+      mutable sector_id: int * int;
     }
 
 let make_info origin cell =
   { origin = origin;
     status = cell.cell_status;
+    sector = cell.sector_id;
   }
 
-let new_cell x y activation status =
+let new_cell x y activation status sector_id =
   { cell_x = x;
     cell_y = y;
     cell_activation = activation;
@@ -103,6 +105,7 @@ let new_cell x y activation status =
 	  exposed_time = 0;
 	  infectious_time = 0;
     compliant = if (Random.float 1.0) < 0.4 then true else false;
+    sector_id = sector_id; (* tuple *)
   }
 
 let draw_cell_gen color_of_cell c =
@@ -185,18 +188,19 @@ let rec long_range_interaction cell cell_array =
 let process cell draw_cell get_neighbors cell_behavior
     x y status_init cell_array =
   signal activation in
-  let self = new_cell x y activation status_init in
-  cell_array.(x).(y) <- self; (* At first, cell_array.(x).(y) contains a signal "temp". This line puts a new signal "activation"*)
+  let sector_id = (x/(!sectormaxx),y/(!sectormaxy)) in 
+  let self = new_cell x y activation status_init sector_id in
+  cell_array.(x).(y) <- self; (* At first, cell_array.(x).(y) contains a temporary cell. This line puts a new cell into it*)
   draw_cell self;
   pause;
   self.cell_neighborhood <- get_neighbors self cell_array;
   loop
-  	(*interaction with four neighbors in a day*)
-  	let faraway = long_range_interaction self cell_array in 
+  	long_range_interaction self cell_array;
+    (*interaction with four neighbors in a day*)
     activate_neighborhood self (self.cell_neighborhood);
     pause;
-    let neighbors = pre ?activation in
-    cell_behavior self neighbors;
+    let interactions = pre ?activation in
+    cell_behavior self interactions;
     draw_cell self;
     self.time <- self.time + 1
   end
@@ -205,18 +209,27 @@ let process cell draw_cell get_neighbors cell_behavior
 (**************************************************************************)
 (* cell behaviors                                                         *)
 (**************************************************************************)
-let ebola cell neighbors = (* pre-T0 *)
+let ebola cell interactions = (* pre-T0 *)
 	let result = ref Susceptible in 
 	List.iter
 	  (fun info -> 
       match info with
-      | {origin = Long_Lange; status=Infectious} -> if Random.float 1.0 < 0.04 then result := Exposed
-      | {origin = _; status=Infectious} -> if Random.float 1.0 < 0.1 then result := Exposed
-      | {origin = _; status=_} -> ()
-)
+      | {origin = Long_Lange; status = Infectious; sector = _} -> 
+          (* Long-range interaction in the same sector *)
+          if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.04) then result := Exposed
+          (* Long-range interaction in the different sector *)
+          else if (Random.float 1.0 < 0.001) then result := Exposed
+
+      | {origin = _; status = Infectious; sector = _} -> 
+          (* Neighbor interaction in the same sector *)
+          if  (info.sector = cell.sector_id) && (Random.float 1.0 < 0.1) then result := Exposed
+          (* Neighbor interaction in the different sector *)
+          else if (Random.float 1.0 < 0.001) then result := Exposed
+      | {origin = _; status = _; sector = _} -> ()
+    )
 (*       if (info.origin = Long_Lange)&&(info.status = Infectious)&&Random.float 1.0 < 0.004 then result := Exposed
       else if (info.status = Infectious)&& Random.float 1.0 < 0.1 then result := Exposed) *)
-	  neighbors;
+	  interactions;
 	  cell.cell_status <-
 	  	match cell.cell_status with
 	  	| Susceptible -> if !result = Exposed then (cell.exposed_time <- cell.time; Exposed) else Susceptible
@@ -263,7 +276,7 @@ let process main =
     Graphics.auto_synchronize false;
 
   signal tmp in
-	let dummy = (new_cell 5 5 tmp Susceptible) in
+	let dummy = (new_cell 5 5 tmp Susceptible (0,0)) in
 		let cell_array = cell_array_create dummy in
 		let draw = draw_cell_gen color_of_status
 		in
