@@ -64,13 +64,14 @@ let maxy = ref 300
 let sectormaxx = ref 10
 let sectormaxy = ref 10
 
-let sectorsize = ref (!maxx / !sectormaxx)
+let sectornumber = ref (!maxx / !sectormaxx)
 
 let nox = ref false
 let zoom = ref 3
 
-let delta = 3 (* steps for E -> I *)
-let gamma = 15 (* steps for I -> R *)
+let delta = 5 (* steps for E -> I *)
+let gamma = 6 (* steps for I -> R *)
+let tzero = ref 15 (* time before policies *)
 
 (**************************************************************************)
 (* cell                                                                   *)
@@ -135,43 +136,32 @@ let color_of_status s =
 (* sector                                                                   *)
 (**************************************************************************)
 
-type 'a sector = 
+type sector = 
     {
-    mutable sector_status: sector_status;
-    sector_activation: (status, status list) event;
+    sector_presence: (status, status list) event;
+    sector_activation: (sector_status, sector_status list) event;
     coordinate: int * int;
+    mutable sector_neighborhood: sector list;
+    mutable sector_status: sector_status;
+    mutable noninfected_time: int;
     } 
 
-let new_sector status activation coordinate =
+let new_sector status presence activation coordinate =
   { 
     sector_status = status;
+    sector_presence = presence;
     sector_activation = activation;
     coordinate = coordinate;
+    sector_neighborhood = [];
+    noninfected_time = 0;
   }
 
 
 (*
 let draw_sector s = 
   Graphics.set_color Graphics.black;
-  Graphics.draw_rect (s.sector_x * !sectorsize) (s.sector_y * !sectorsize) !sectorsize !sectorsize
+  Graphics.draw_rect (s.sector_x * !sectornumber) (s.sector_y * !sectornumber) !sectornumber !sectornumber
 *)
-
-(**************************************************************************)
-(* sector process                                                         *)
-(**************************************************************************)
-let process sector coordinate sector_array =
-  signal sector_activation in
-  let x,y = coordinate in
-  let self_sector = new_sector A sector_activation coordinate in
-  sector_array.(x).(y) <- self_sector;
-  pause;
-
-  loop
-    pause;
-    let reports = pre ?sector_activation in 
-    ()
-  end
-
 
 (**************************************************************************)
 (* neighborhood functions                                                 *)
@@ -187,6 +177,139 @@ let get_von_neumann_neighbors cell cell_array =
   !neighbors
 
 (* let sector_neighbors sector sector_array =  *)
+
+let get_sector_neighbors sector sector_array = 
+  let x,y = sector.coordinate in
+  let neighbors = ref [] in
+  if 0 <= x-1 then neighbors := (sector_array.(x-1).(y)) :: !neighbors;
+  if x+1 < !sectornumber then neighbors := (sector_array.(x+1).(y)) :: !neighbors;
+  if 0 <= y-1 then neighbors := (sector_array.(x).(y-1)) :: !neighbors;
+  if y+1 < !sectornumber then neighbors := (sector_array.(x).(y+1)) :: !neighbors;
+  !neighbors
+
+(**************************************************************************)
+(* cell behaviors                                                         *)
+(**************************************************************************)
+let ebola cell interactions = (* pre-T0 *)
+  let result = ref Susceptible in 
+  List.iter
+    (fun info -> 
+      match info with
+      | {origin = Long_Lange; status = Infectious; sector = _} -> 
+          (* Long-range interaction in the same sector *)
+          if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.0125) then result := Exposed
+          (* Long-range interaction in the different sector *)
+          else if (Random.float 1.0 < 0.0125) then result := Exposed
+
+      | {origin = _; status = Infectious; sector = _} -> 
+          (* Neighbor interaction in the same sector *)
+          if  (info.sector = cell.sector_id) && (Random.float 1.0 < 0.15) then result := Exposed
+          (* Neighbor interaction in the different sector *)
+          else if (Random.float 1.0 < 0.15) then result := Exposed
+      | {origin = _; status = _; sector = _} -> ()
+    )
+
+    interactions;
+    cell.cell_status <-
+      match cell.cell_status with
+      | Susceptible -> if !result = Exposed then (cell.exposed_time <- cell.time; Exposed) else Susceptible
+      | Exposed ->     if (cell.time - cell.exposed_time) < delta then Exposed else (cell.infectious_time <- cell.time; Infectious)
+      | Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
+      | Removed ->   Removed
+      
+(* Post T0 *)
+
+let post_ebola cell interactions sector_array= 
+  let result = ref Susceptible in 
+  List.iter
+    (fun info ->
+      let x,y = info.sector in
+      let sector = sector_array.(x).(y) in
+      begin match sector.sector_status with
+      | C -> ()
+      | _ -> 
+      (match info with
+        | {origin = Long_Lange; status = Infectious; sector = _} -> 
+            (* Long-range interaction in the same sector *)
+            if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.0125) then result := Exposed
+            (* Long-range interaction in the different sector *)
+            else if (Random.float 1.0 < 0.0125) then result := Exposed
+
+        | {origin = _; status = Infectious; sector = _} -> 
+            (* Neighbor interaction in the same sector *)
+            if  (info.sector = cell.sector_id) && (Random.float 1.0 < 0.15) then result := Exposed
+            (* Neighbor interaction in the different sector *)
+            else if (Random.float 1.0 < 0.15) then result := Exposed
+        | {origin = _; status = _; sector = _} -> ()
+      )
+      end
+    )
+    interactions;
+
+    cell.cell_status <-
+      match cell.cell_status with
+      | Susceptible -> if !result = Exposed then (cell.exposed_time <- cell.time; Exposed) else Susceptible
+      | Exposed ->     if (cell.time - cell.exposed_time) < delta then Exposed else (cell.infectious_time <- cell.time; Infectious)
+      | Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
+      | Removed ->   Removed
+
+let isolated cell = 
+      cell.cell_status <-
+      match cell.cell_status with
+      | Susceptible -> Susceptible
+      | Exposed ->     if (cell.time - cell.exposed_time) < delta then Exposed else (cell.infectious_time <- cell.time; Infectious)
+      | Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
+      | Removed ->   Removed
+
+(**************************************************************************)
+(* sector process                                                         *)
+(**************************************************************************)
+
+let rec activate_sector_neighborhood self neighbors = 
+  match neighbors with
+  | [] -> ()
+  | sector :: neighbors' -> 
+      let info = self.sector_status in
+      emit sector.sector_activation info;
+      activate_sector_neighborhood self neighbors'
+
+(* let check_neighbors neighbors = 
+  let neighbor_status = ref false in
+  List.iter 
+  (fun sector ->
+    if (sector.sector_status = A) then
+      neighbor_status := true
+  )
+  neighbors;
+  !neighbor_status *)
+
+let process sector coordinate sector_array =
+  signal sector_presence in
+  signal sector_activation in
+  let x,y = coordinate in
+  let self_sector = new_sector A sector_presence sector_activation coordinate in
+  sector_array.(x).(y) <- self_sector;
+  pause;
+  self_sector.sector_neighborhood <- (get_sector_neighbors self_sector sector_array);
+  loop
+
+    (* TODO: Emit to neighbors *)
+    activate_sector_neighborhood self_sector self_sector.sector_neighborhood;
+    pause;
+    (* ABC conditions *)
+    let sector_reports = pre ?sector_activation in
+
+    if self_sector.sector_status != C then
+      let cell_reports = pre ?sector_presence in 
+      begin match cell_reports with
+      | [] -> 
+            if (self_sector.noninfected_time >= (delta+1)) && (List.mem A sector_reports) then
+              self_sector.sector_status <- C
+            else 
+              self_sector.sector_status <- B; self_sector.noninfected_time <- self_sector.noninfected_time + 1
+      | _ -> self_sector.sector_status <- A; self_sector.noninfected_time <- 0
+      end
+  end
 
 
 (**************************************************************************)
@@ -220,7 +343,7 @@ let rec long_range_interaction cell cell_array =
   	else long_range_interaction cell cell_array
 
 
-let process cell draw_cell get_neighbors cell_behavior
+let process cell draw_cell get_neighbors
     x y status_init cell_array sector_array=
   signal activation in
   let sector_id = (x/(!sectormaxx),y/(!sectormaxy)) in 
@@ -235,47 +358,22 @@ let process cell draw_cell get_neighbors cell_behavior
     activate_neighborhood self (self.cell_neighborhood);
 
     let sector = sector_array.(fst sector_id).(snd sector_id) in
-    emit sector.sector_activation self.cell_status;
+    if self.cell_status = Infectious then
+      emit sector.sector_presence self.cell_status;
     
     pause;
     let interactions = pre ?activation in
-    cell_behavior self interactions;
+    if (self.time < !tzero) then
+      ebola self interactions
+    else
+      if ((self.time - self.infectious_time) >= 1) && self.compliant then (* Infected for 1+ day *)
+        isolated self
+      else
+        post_ebola self interactions sector_array;
     draw_cell self;
     self.time <- self.time + 1
   end
 
-
-(**************************************************************************)
-(* cell behaviors                                                         *)
-(**************************************************************************)
-let ebola cell interactions = (* pre-T0 *)
-	let result = ref Susceptible in 
-	List.iter
-	  (fun info -> 
-      match info with
-      | {origin = Long_Lange; status = Infectious; sector = _} -> 
-          (* Long-range interaction in the same sector *)
-          if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.04) then result := Exposed
-          (* Long-range interaction in the different sector *)
-          else if (Random.float 1.0 < 0.001) then result := Exposed
-
-      | {origin = _; status = Infectious; sector = _} -> 
-          (* Neighbor interaction in the same sector *)
-          if  (info.sector = cell.sector_id) && (Random.float 1.0 < 0.1) then result := Exposed
-          (* Neighbor interaction in the different sector *)
-          else if (Random.float 1.0 < 0.001) then result := Exposed
-      | {origin = _; status = _; sector = _} -> ()
-    )
-
-	  interactions;
-	  cell.cell_status <-
-	  	match cell.cell_status with
-	  	| Susceptible -> if !result = Exposed then (cell.exposed_time <- cell.time; Exposed) else Susceptible
-	  	| Exposed ->     if (cell.time - cell.exposed_time) < delta then Exposed else (cell.infectious_time <- cell.time; Infectious)
-	  	| Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
-	  	| Removed -> 	 Removed
-	  	
-(* Post T0 *)
 
 (**************************************************************************)
 (* cellular automaton                                                     *)
@@ -284,26 +382,28 @@ let cell_array_create tmp =
   Array.make_matrix !maxx !maxy tmp
 
 let sector_array_create tmp =
-  Array.make_matrix !sectorsize !sectorsize tmp
+  Array.make_matrix !sectornumber !sectornumber tmp
 
 let get_status i j =
 	(* For testing the long-range infection *)
 	(*if (i = 100)&&(j = 100) then Infectious, () else Susceptible, ()*)
-	if Random.float 1.0 < 0.0005 then Infectious else Susceptible
+	if Random.float 1.0 < 0.0002 then Infectious 
+  else if Random.float 1.0 < 0.0002 then Exposed 
+  else Susceptible
 
 
 let process cellular_automaton_start
-    draw_cell get_neighbors get_status cell_behavior cell_array sector_array =
+    draw_cell get_neighbors get_status cell_array sector_array =
   for i = 0 to !maxx - 1 dopar
     for j = 0 to !maxy - 1 dopar
       if (j mod (!sectormaxx) = 0) && (i mod (!sectormaxy) = 0) then 
-        ( run (cell draw_cell get_neighbors cell_behavior
+        ( run (cell draw_cell get_neighbors
           i j (get_status i j) cell_array sector_array)
           ||
           run (sector (i/(!sectormaxx), j/(!sectormaxy)) sector_array)
         )
       else 
-        ( run (cell draw_cell get_neighbors cell_behavior
+        ( run (cell draw_cell get_neighbors
           i j (get_status i j) cell_array sector_array)
         )
      
@@ -323,9 +423,10 @@ let process main =
     Graphics.auto_synchronize false;
 
   signal tmp_cell in
-  signal tmp_sector in
+  signal tmp_sector_p in
+  signal tmp_sector_a in
 	let dummy_cell = (new_cell 5 5 tmp_cell Susceptible (0,0)) in
-  let dummy_sector = (new_sector C tmp_sector (0,0)) in 
+  let dummy_sector = (new_sector C tmp_sector_p tmp_sector_a (0,0)) in 
 		let cell_array = cell_array_create dummy_cell in
     let sector_array = sector_array_create dummy_sector in
 		let draw = draw_cell_gen color_of_status
@@ -334,7 +435,6 @@ let process main =
 		       draw
 		       get_von_neumann_neighbors
 		       get_status
-		       ebola
 	       	 cell_array
            sector_array);
 		||
