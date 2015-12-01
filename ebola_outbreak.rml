@@ -43,16 +43,17 @@ let opposite dir =
 (* Info                                                             *)
 (********************************************************************)
 
-type 'a info =
+type info =
     { origin: dir;
       status: status;
       sector: int * int;
     }
+
 (**************************************************************************)
 (* neighborhood                                                           *)
 (**************************************************************************)
 
-type 'a neighborhood = 'a info list
+type neighborhood = info list
 
 (********************************************************************)
 (* Constantes                                                       *)
@@ -76,13 +77,13 @@ let gamma = 15 (* steps for I -> R *)
 (**************************************************************************)
 
 
-type 'a cell =
+type cell =
     { cell_x: int;
       cell_y: int;
-      cell_activation: ('a info, 'a info list) event;
+      cell_activation: (info, info list) event;
       compliant: bool;
       mutable cell_status: status;
-      mutable cell_neighborhood: ((dir * 'a cell) list);
+      mutable cell_neighborhood: ((dir * cell) list);
       mutable time: int;
       mutable exposed_time: int;
       mutable infectious_time: int;
@@ -127,27 +128,50 @@ let color_of_status s =
   match s.cell_status with
   | Susceptible -> Graphics.blue
   | Exposed -> Graphics.green
-  | Infectious -> Graphics.red
+  | Infectious -> Graphics.red;
   | Removed -> Graphics.white
 
 (**************************************************************************)
 (* sector                                                                   *)
 (**************************************************************************)
 
-(* type 'a sector = 
+type 'a sector = 
     {
     mutable sector_status: sector_status;
-    cell_list: ('a cell, 'a cell list);
-    sector_x: int;
-    sector_y: int;
-    } *)
+    sector_activation: (status, status list) event;
+    coordinate: int * int;
+    } 
 
-(* let new_sector x y = 
- *)
-(* 
+let new_sector status activation coordinate =
+  { 
+    sector_status = status;
+    sector_activation = activation;
+    coordinate = coordinate;
+  }
+
+
+(*
 let draw_sector s = 
   Graphics.set_color Graphics.black;
-  Graphics.draw_rect (s.sector_x * !sectorsize) (s.sector_y * !sectorsize) !sectorsize !sectorsize *)
+  Graphics.draw_rect (s.sector_x * !sectorsize) (s.sector_y * !sectorsize) !sectorsize !sectorsize
+*)
+
+(**************************************************************************)
+(* sector process                                                         *)
+(**************************************************************************)
+let process sector coordinate sector_array =
+  signal sector_activation in
+  let x,y = coordinate in
+  let self_sector = new_sector A sector_activation coordinate in
+  sector_array.(x).(y) <- self_sector;
+  pause;
+
+  loop
+    pause;
+    let reports = pre ?sector_activation in 
+    ()
+  end
+
 
 (**************************************************************************)
 (* neighborhood functions                                                 *)
@@ -197,7 +221,7 @@ let rec long_range_interaction cell cell_array =
 
 
 let process cell draw_cell get_neighbors cell_behavior
-    x y status_init cell_array =
+    x y status_init cell_array sector_array=
   signal activation in
   let sector_id = (x/(!sectormaxx),y/(!sectormaxy)) in 
   let self = new_cell x y activation status_init sector_id in
@@ -209,6 +233,10 @@ let process cell draw_cell get_neighbors cell_behavior
   	long_range_interaction self cell_array;
     (*interaction with four neighbors in a day*)
     activate_neighborhood self (self.cell_neighborhood);
+
+    let sector = sector_array.(fst sector_id).(snd sector_id) in
+    emit sector.sector_activation self.cell_status;
+    
     pause;
     let interactions = pre ?activation in
     cell_behavior self interactions;
@@ -256,7 +284,7 @@ let cell_array_create tmp =
   Array.make_matrix !maxx !maxy tmp
 
 let sector_array_create tmp =
-  Array.make_matrix !sectormaxx !sectormaxy tmp
+  Array.make_matrix !sectorsize !sectorsize tmp
 
 let get_status i j =
 	(* For testing the long-range infection *)
@@ -265,11 +293,20 @@ let get_status i j =
 
 
 let process cellular_automaton_start
-    draw_cell get_neighbors get_status cell_behavior cell_array =
+    draw_cell get_neighbors get_status cell_behavior cell_array sector_array =
   for i = 0 to !maxx - 1 dopar
     for j = 0 to !maxy - 1 dopar
-      run (cell draw_cell get_neighbors cell_behavior
-	     i j (get_status i j) cell_array)
+      if (j mod (!sectormaxx) = 0) && (i mod (!sectormaxy) = 0) then 
+        ( run (cell draw_cell get_neighbors cell_behavior
+          i j (get_status i j) cell_array sector_array)
+          ||
+          run (sector (i/(!sectormaxx), j/(!sectormaxy)) sector_array)
+        )
+      else 
+        ( run (cell draw_cell get_neighbors cell_behavior
+          i j (get_status i j) cell_array sector_array)
+        )
+     
     done
   done
 
@@ -285,9 +322,12 @@ let process main =
 			       (string_of_int (!maxy * !zoom)));
     Graphics.auto_synchronize false;
 
-  signal tmp in
-	let dummy = (new_cell 5 5 tmp Susceptible (0,0)) in
-		let cell_array = cell_array_create dummy in
+  signal tmp_cell in
+  signal tmp_sector in
+	let dummy_cell = (new_cell 5 5 tmp_cell Susceptible (0,0)) in
+  let dummy_sector = (new_sector C tmp_sector (0,0)) in 
+		let cell_array = cell_array_create dummy_cell in
+    let sector_array = sector_array_create dummy_sector in
 		let draw = draw_cell_gen color_of_status
 		in
 		run (cellular_automaton_start
@@ -295,7 +335,8 @@ let process main =
 		       get_von_neumann_neighbors
 		       get_status
 		       ebola
-	       	 cell_array);
+	       	 cell_array
+           sector_array);
 		||
 		loop
 			ignore (Graphics.wait_next_event [Graphics.Poll]);
