@@ -67,11 +67,11 @@ let sectormaxy = ref 10
 let sectornumber = ref (!maxx / !sectormaxx)
 
 let nox = ref false
-let zoom = ref 3
+let zoom = ref 4
 
 let delta = 5 (* steps for E -> I *)
 let gamma = 6 (* steps for I -> R *)
-let tzero = ref 15 (* time before policies *)
+let t0 = ref 15 (* time before policies *)
 
 (**************************************************************************)
 (* cell                                                                   *)
@@ -110,28 +110,6 @@ let new_cell x y activation status sector_id =
     sector_id = sector_id; (* tuple *)
   }
 
-let draw_cell_gen color_of_cell c =
-  Graphics.set_color (color_of_cell c);
-  Graphics.fill_rect (c.cell_x * !zoom) (c.cell_y * !zoom) !zoom !zoom;
-
-  if c.cell_x mod !sectormaxx = 0 then (
-    Graphics.set_color Graphics.black;
-    Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
-    Graphics.lineto ((c.cell_x ) * !zoom) ((c.cell_y+ 1) * !zoom) 
-  )
-  else if c.cell_y mod !sectormaxy = 0 then (
-    Graphics.set_color Graphics.black;
-    Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
-    Graphics.lineto ((c.cell_x + 1) * !zoom) ((c.cell_y) * !zoom) 
-  )
-
-let color_of_status s =
-  match s.cell_status with
-  | Susceptible -> Graphics.blue
-  | Exposed -> Graphics.green
-  | Infectious -> Graphics.red;
-  | Removed -> Graphics.white
-
 (**************************************************************************)
 (* sector                                                                   *)
 (**************************************************************************)
@@ -157,11 +135,50 @@ let new_sector status presence activation coordinate =
   }
 
 
-(*
-let draw_sector s = 
-  Graphics.set_color Graphics.black;
-  Graphics.draw_rect (s.sector_x * !sectornumber) (s.sector_y * !sectornumber) !sectornumber !sectornumber
-*)
+(**************************************************************************)
+(* graphics                                                               *)
+(**************************************************************************)
+
+let line_color sector_status =
+   match sector_status with
+    | A -> Graphics.red     
+    | B -> Graphics.yellow
+    | C -> Graphics.blue
+           
+
+let draw_cell_gen color_of_cell c sector_array =
+  Graphics.set_color (color_of_cell c);
+  Graphics.fill_rect (c.cell_x * !zoom) (c.cell_y * !zoom) !zoom !zoom;
+  
+  let x,y = c.sector_id in 
+  let sector = sector_array.(x).(y) in
+  let color = line_color sector.sector_status in
+  
+  Graphics.set_color color;
+  Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
+  Graphics.lineto ((c.cell_x ) * !zoom) ((c.cell_y+ 1) * !zoom);
+  Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
+  Graphics.lineto ((c.cell_x + 1) * !zoom) ((c.cell_y) * !zoom);
+
+  if c.cell_x mod !sectormaxx = 0 then (
+    Graphics.set_color Graphics.black;
+    Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
+    Graphics.lineto ((c.cell_x ) * !zoom) ((c.cell_y+ 1) * !zoom) 
+  )
+  else if c.cell_y mod !sectormaxy = 0 then (
+    Graphics.set_color Graphics.black;
+    Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
+    Graphics.lineto ((c.cell_x + 1) * !zoom) ((c.cell_y) * !zoom) 
+  )
+
+let color_of_status s =
+  match s.cell_status with
+  | Susceptible -> Graphics.rgb 102 102 102
+  | Exposed -> Graphics.yellow
+  | Infectious -> Graphics.red;
+  | Removed -> Graphics.black
+
+
 
 (**************************************************************************)
 (* neighborhood functions                                                 *)
@@ -309,6 +326,7 @@ let process sector coordinate sector_array =
               self_sector.sector_status <- B; self_sector.noninfected_time <- self_sector.noninfected_time + 1
       | _ -> self_sector.sector_status <- A; self_sector.noninfected_time <- 0
       end
+
   end
 
 
@@ -363,14 +381,14 @@ let process cell draw_cell get_neighbors
     
     pause;
     let interactions = pre ?activation in
-    if (self.time < !tzero) then
+    if (self.time < !t0) then
       ebola self interactions
     else
       if ((self.time - self.infectious_time) >= 1) && self.compliant then (* Infected for 1+ day *)
         isolated self
       else
         post_ebola self interactions sector_array;
-    draw_cell self;
+    draw_cell self sector_array;
     self.time <- self.time + 1
   end
 
