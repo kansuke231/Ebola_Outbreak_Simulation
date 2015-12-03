@@ -58,8 +58,8 @@ type neighborhood = info list
 (********************************************************************)
 (* Constantes                                                       *)
 (********************************************************************)
-let maxx = ref 300
-let maxy = ref 300
+let maxx = ref 200
+let maxy = ref 200
 
 let sectormaxx = ref 10
 let sectormaxy = ref 10
@@ -69,9 +69,9 @@ let sectornumber = ref (!maxx / !sectormaxx)
 let nox = ref false
 let zoom = ref 4
 
-let delta = 5 (* steps for E -> I *)
-let gamma = 6 (* steps for I -> R *)
-let t0 = ref 15 (* time before policies *)
+let delta = 10 (* steps for E -> I *)
+let gamma = 7 (* steps for I -> R *)
+let t0 = ref 30 (* time before policies *)
 
 (**************************************************************************)
 (* cell                                                                   *)
@@ -122,6 +122,7 @@ type sector =
     mutable sector_neighborhood: sector list;
     mutable sector_status: sector_status;
     mutable noninfected_time: int;
+    mutable sector_time: int;
     } 
 
 let new_sector status presence activation coordinate =
@@ -132,6 +133,7 @@ let new_sector status presence activation coordinate =
     coordinate = coordinate;
     sector_neighborhood = [];
     noninfected_time = 0;
+    sector_time = 1;
   }
 
 
@@ -152,8 +154,13 @@ let draw_cell_gen color_of_cell c sector_array =
   
   let x,y = c.sector_id in 
   let sector = sector_array.(x).(y) in
-  let color = line_color sector.sector_status in
-  
+  let color = 
+  if c.time < !t0+gamma then 
+    Graphics.black
+  else 
+    (line_color sector.sector_status)
+  in
+
   Graphics.set_color color;
   Graphics.moveto (c.cell_x * !zoom) (c.cell_y * !zoom);
   Graphics.lineto ((c.cell_x ) * !zoom) ((c.cell_y+ 1) * !zoom);
@@ -177,7 +184,6 @@ let color_of_status s =
   | Exposed -> Graphics.yellow
   | Infectious -> Graphics.red;
   | Removed -> Graphics.black
-
 
 
 (**************************************************************************)
@@ -213,16 +219,16 @@ let ebola cell interactions = (* pre-T0 *)
     (fun info -> 
       match info with
       | {origin = Long_Lange; status = Infectious; sector = _} -> 
-          (* Long-range interaction in the same sector *)
+          (* (* Long-range interaction in the same sector *)
           if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.0125) then result := Exposed
           (* Long-range interaction in the different sector *)
-          else if (Random.float 1.0 < 0.0125) then result := Exposed
+          else  *)if (Random.float 1.0 < 0.015) then result := Exposed
 
       | {origin = _; status = Infectious; sector = _} -> 
-          (* Neighbor interaction in the same sector *)
+          (* (* Neighbor interaction in the same sector *)
           if  (info.sector = cell.sector_id) && (Random.float 1.0 < 0.15) then result := Exposed
           (* Neighbor interaction in the different sector *)
-          else if (Random.float 1.0 < 0.15) then result := Exposed
+          else  *)if (Random.float 1.0 < 0.18) then result := Exposed
       | {origin = _; status = _; sector = _} -> ()
     )
 
@@ -247,16 +253,16 @@ let post_ebola cell interactions sector_array=
       | _ -> 
       (match info with
         | {origin = Long_Lange; status = Infectious; sector = _} -> 
-            (* Long-range interaction in the same sector *)
-            if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.0125) then result := Exposed
+            (* (* Long-range interaction in the same sector *)
+            if (info.sector = cell.sector_id) && (Random.float 1.0 < 0.1) then result := Exposed
             (* Long-range interaction in the different sector *)
-            else if (Random.float 1.0 < 0.0125) then result := Exposed
+            else  *)if (Random.float 1.0 < 0.015) then result := Exposed
 
         | {origin = _; status = Infectious; sector = _} -> 
-            (* Neighbor interaction in the same sector *)
+            (* (* Neighbor interaction in the same sector *)
             if  (info.sector = cell.sector_id) && (Random.float 1.0 < 0.15) then result := Exposed
             (* Neighbor interaction in the different sector *)
-            else if (Random.float 1.0 < 0.15) then result := Exposed
+            else  *)if (Random.float 1.0 < 0.18) then result := Exposed
         | {origin = _; status = _; sector = _} -> ()
       )
       end
@@ -316,17 +322,20 @@ let process sector coordinate sector_array =
     (* ABC conditions *)
     let sector_reports = pre ?sector_activation in
 
-    if self_sector.sector_status != C then
-      let cell_reports = pre ?sector_presence in 
-      begin match cell_reports with
-      | [] -> 
-            if (self_sector.noninfected_time >= (delta+1)) && (List.mem A sector_reports) then
-              self_sector.sector_status <- C
-            else 
-              self_sector.sector_status <- B; self_sector.noninfected_time <- self_sector.noninfected_time + 1
-      | _ -> self_sector.sector_status <- A; self_sector.noninfected_time <- 0
-      end
-
+    if self_sector.sector_time > !t0+gamma then 
+      if self_sector.sector_status != C then
+        let cell_reports = pre ?sector_presence in 
+        begin match cell_reports with
+        | [] -> 
+              if (self_sector.noninfected_time >= (gamma+1)) && not (List.mem A sector_reports) then
+                self_sector.sector_status <- C
+              else 
+                self_sector.sector_status <- B; self_sector.noninfected_time <- self_sector.noninfected_time + 1
+        | _ -> self_sector.sector_status <- A; self_sector.noninfected_time <- 0
+        end
+      ;
+      ;
+    self_sector.sector_time <- self_sector.sector_time + 1
   end
 
 
@@ -345,7 +354,12 @@ let rec activate_neighborhood self neighbors =
         a signal for eveyry neighbor of self and awaiting this signal catches a list of
         signals emitted during the instant (so it's list)*)
 
-let rec long_range_interaction cell cell_array =
+let get_sector_status cell sector_array = 
+  let x,y = cell.sector_id in
+  let own_sector = sector_array.(x).(y).sector_status in
+  own_sector
+
+let rec long_range_interaction cell cell_array sector_array=
 	let maxx = !maxx in 
 	let maxy = !maxy in
 	let x = cell.cell_x  in
@@ -355,11 +369,13 @@ let rec long_range_interaction cell cell_array =
   	if (x <> rand_x)&&(y <> rand_y) 
   		then
       let other = cell_array.(rand_x).(rand_y) in
-      let other_activation = other.cell_activation in
-      emit cell.cell_activation (make_info Long_Lange other);
-      emit other_activation (make_info Long_Lange cell)
-  	else long_range_interaction cell cell_array
-
+      if (get_sector_status other sector_array) = C then
+        ()
+      else
+        let other_activation = other.cell_activation in
+        emit cell.cell_activation (make_info Long_Lange other);
+        emit other_activation (make_info Long_Lange cell)
+  	else long_range_interaction cell cell_array sector_array
 
 let process cell draw_cell get_neighbors
     x y status_init cell_array sector_array=
@@ -371,7 +387,7 @@ let process cell draw_cell get_neighbors
   pause;
   self.cell_neighborhood <- get_neighbors self cell_array;
   loop
-  	long_range_interaction self cell_array;
+  	long_range_interaction self cell_array sector_array;
     (*interaction with four neighbors in a day*)
     activate_neighborhood self (self.cell_neighborhood);
 
@@ -380,16 +396,18 @@ let process cell draw_cell get_neighbors
       emit sector.sector_presence self.cell_status;
     
     pause;
+    draw_cell self sector_array;
+    let own_sector = get_sector_status self sector_array in
     let interactions = pre ?activation in
     if (self.time < !t0) then
       ebola self interactions
     else
-      if ((self.time - self.infectious_time) >= 1) && self.compliant then (* Infected for 1+ day *)
+      if (((self.time - self.infectious_time) >= 1) && self.compliant) or (own_sector = C) then (* Infected for 1+ day *)
         isolated self
       else
         post_ebola self interactions sector_array;
-    draw_cell self sector_array;
-    self.time <- self.time + 1
+
+    self.time <- self.time + 1;
   end
 
 
