@@ -7,45 +7,37 @@ type  status
 type  sector_status
 = A |  B |  C ;;
 type  dir
-=
-  Up | 
-  Down | 
-  Left | 
-  Right |  Up_Left |  Up_Right |  Down_Left |  Down_Right |  Long_Lange ;;
+= Up |  Down |  Left |  Right |  Long_Range ;;
 let opposite =
       (function
         | dir__val_rml_2  ->
             (match dir__val_rml_2 with | Up  -> Down | Down  -> Up
-             | Left  -> Right | Right  -> Left | Up_Left  -> Down_Right
-             | Up_Right  -> Down_Left | Down_Left  -> Up_Right
-             | Down_Right  -> Up_Left | Long_Lange  -> Long_Lange )
+             | Left  -> Right | Right  -> Left | Long_Range  -> Long_Range )
         ) 
 ;;
 type  info
 = {  origin: dir ;   status: status ;   sector: (int * int)} ;;
 type  neighborhood
 = (info) list ;;
-let maxx = Pervasives.ref 200 
+let maxx = 200 
 ;;
-let maxy = Pervasives.ref 200 
+let maxy = 200 
 ;;
-let sectormaxx = Pervasives.ref 10 
+let sectormaxx = 10 
 ;;
-let sectormaxy = Pervasives.ref 10 
+let sectormaxy = 10 
 ;;
-let sectornumber =
-      Pervasives.ref
-        (Pervasives.(/) (Pervasives.(!) maxx) (Pervasives.(!) sectormaxx)) 
+let sector_number = Pervasives.(/) maxx sectormaxx 
 ;;
-let nox = Pervasives.ref false 
+let nox = false 
 ;;
-let zoom = Pervasives.ref 4 
+let zoom = 4 
 ;;
 let delta = 10 
 ;;
 let gamma = 7 
 ;;
-let t0 = Pervasives.ref 30 
+let t0 = 30 
 ;;
 type  cell
 = {
@@ -122,7 +114,7 @@ let new_sector =
                                sector_activation=(activation__val_rml_25);
                                coordinate=(coordinate__val_rml_26);
                                sector_neighborhood=(([]));
-                               noninfected_time=((0)); sector_time=(1)}
+                               noninfected_time=((0)); sector_time=((0))}
                           )
                     )
               )
@@ -145,11 +137,9 @@ let draw_cell_gen =
                         Graphics.set_color
                           (color_of_cell__val_rml_30 c__val_rml_31);
                           Graphics.fill_rect
-                            (Pervasives.( * )
-                              (c__val_rml_31).cell_x (Pervasives.(!) zoom))
-                            (Pervasives.( * )
-                              (c__val_rml_31).cell_y (Pervasives.(!) zoom))
-                            (Pervasives.(!) zoom) (Pervasives.(!) zoom);
+                            (Pervasives.( * ) (c__val_rml_31).cell_x zoom)
+                            (Pervasives.( * ) (c__val_rml_31).cell_y zoom)
+                            zoom zoom;
                           (let (x__val_rml_33, y__val_rml_34) =
                                  (c__val_rml_31).sector_id
                              in
@@ -163,8 +153,7 @@ let draw_cell_gen =
                                     if
                                       Pervasives.(<)
                                         (c__val_rml_31).time
-                                        (Pervasives.(+)
-                                          (Pervasives.(!) t0) gamma)
+                                        (Pervasives.(+) t0 gamma)
                                       then Graphics.black else
                                       line_color
                                         (sector__val_rml_35).sector_status
@@ -172,81 +161,67 @@ let draw_cell_gen =
                                 Graphics.set_color color__val_rml_36;
                                   Graphics.moveto
                                     (Pervasives.( * )
-                                      (c__val_rml_31).cell_x
-                                      (Pervasives.(!) zoom))
+                                      (c__val_rml_31).cell_x zoom)
                                     (Pervasives.( * )
-                                      (c__val_rml_31).cell_y
-                                      (Pervasives.(!) zoom));
+                                      (c__val_rml_31).cell_y zoom);
                                   Graphics.lineto
                                     (Pervasives.( * )
-                                      (c__val_rml_31).cell_x
-                                      (Pervasives.(!) zoom))
+                                      (c__val_rml_31).cell_x zoom)
                                     (Pervasives.( * )
                                       (Pervasives.(+)
                                         (c__val_rml_31).cell_y 1)
-                                      (Pervasives.(!) zoom));
+                                      zoom);
                                   Graphics.moveto
                                     (Pervasives.( * )
-                                      (c__val_rml_31).cell_x
-                                      (Pervasives.(!) zoom))
+                                      (c__val_rml_31).cell_x zoom)
                                     (Pervasives.( * )
-                                      (c__val_rml_31).cell_y
-                                      (Pervasives.(!) zoom));
+                                      (c__val_rml_31).cell_y zoom);
                                   Graphics.lineto
                                     (Pervasives.( * )
                                       (Pervasives.(+)
                                         (c__val_rml_31).cell_x 1)
-                                      (Pervasives.(!) zoom))
+                                      zoom)
                                     (Pervasives.( * )
-                                      (c__val_rml_31).cell_y
-                                      (Pervasives.(!) zoom));
+                                      (c__val_rml_31).cell_y zoom);
                                   if
                                     Pervasives.(=)
                                       (Pervasives.(mod)
-                                        (c__val_rml_31).cell_x
-                                        (Pervasives.(!) sectormaxx))
+                                        (c__val_rml_31).cell_x sectormaxx)
                                       (0)
                                     then
                                     (Graphics.set_color Graphics.black;
                                        Graphics.moveto
                                          (Pervasives.( * )
-                                           (c__val_rml_31).cell_x
-                                           (Pervasives.(!) zoom))
+                                           (c__val_rml_31).cell_x zoom)
                                          (Pervasives.( * )
-                                           (c__val_rml_31).cell_y
-                                           (Pervasives.(!) zoom));
+                                           (c__val_rml_31).cell_y zoom);
                                       Graphics.lineto
                                         (Pervasives.( * )
-                                          (c__val_rml_31).cell_x
-                                          (Pervasives.(!) zoom))
+                                          (c__val_rml_31).cell_x zoom)
                                         (Pervasives.( * )
                                           (Pervasives.(+)
                                             (c__val_rml_31).cell_y 1)
-                                          (Pervasives.(!) zoom)))
+                                          zoom))
                                     else
                                     if
                                       Pervasives.(=)
                                         (Pervasives.(mod)
-                                          (c__val_rml_31).cell_y
-                                          (Pervasives.(!) sectormaxy))
+                                          (c__val_rml_31).cell_y sectormaxy)
                                         (0)
                                       then
                                       (Graphics.set_color Graphics.black;
                                          Graphics.moveto
                                            (Pervasives.( * )
-                                             (c__val_rml_31).cell_x
-                                             (Pervasives.(!) zoom))
+                                             (c__val_rml_31).cell_x zoom)
                                            (Pervasives.( * )
-                                             (c__val_rml_31).cell_y
-                                             (Pervasives.(!) zoom));
+                                             (c__val_rml_31).cell_y zoom);
                                         Graphics.lineto
                                           (Pervasives.( * )
                                             (Pervasives.(+)
                                               (c__val_rml_31).cell_x 1)
-                                            (Pervasives.(!) zoom))
+                                            zoom)
                                           (Pervasives.( * )
-                                            (c__val_rml_31).cell_y
-                                            (Pervasives.(!) zoom)))
+                                            (c__val_rml_31).cell_y zoom))
                                       else ())
                     )
               )
@@ -285,8 +260,7 @@ let get_von_neumann_neighbors =
                           else ();
                           if
                             Pervasives.(<)
-                              (Pervasives.(+) x__val_rml_42 1)
-                              (Pervasives.(!) maxx)
+                              (Pervasives.(+) x__val_rml_42 1) maxx
                             then
                             Pervasives.(:=)
                               neighbors__val_rml_44
@@ -313,8 +287,7 @@ let get_von_neumann_neighbors =
                             else ();
                           if
                             Pervasives.(<)
-                              (Pervasives.(+) y__val_rml_43 1)
-                              (Pervasives.(!) maxy)
+                              (Pervasives.(+) y__val_rml_43 1) maxy
                             then
                             Pervasives.(:=)
                               neighbors__val_rml_44
@@ -351,8 +324,7 @@ let get_sector_neighbors =
                         else ();
                         if
                           Pervasives.(<)
-                            (Pervasives.(+) x__val_rml_48 1)
-                            (Pervasives.(!) sectornumber)
+                            (Pervasives.(+) x__val_rml_48 1) sector_number
                           then
                           Pervasives.(:=)
                             neighbors__val_rml_50
@@ -377,8 +349,7 @@ let get_sector_neighbors =
                           else ();
                         if
                           Pervasives.(<)
-                            (Pervasives.(+) y__val_rml_49 1)
-                            (Pervasives.(!) sectornumber)
+                            (Pervasives.(+) y__val_rml_49 1) sector_number
                           then
                           Pervasives.(:=)
                             neighbors__val_rml_50
@@ -402,7 +373,7 @@ let ebola =
                       (function
                         | info__val_rml_55  ->
                             (match info__val_rml_55 with
-                             | {origin=Long_Lange;
+                             | {origin=Long_Range;
                                 status=Infectious; sector=_}  ->
                                  if Pervasives.(<) (Random.float 1.) 0.015
                                    then
@@ -476,7 +447,7 @@ let post_ebola =
                                       | C  -> ()
                                       | _  ->
                                           (match info__val_rml_61 with
-                                           | {origin=Long_Lange;
+                                           | {origin=Long_Range;
                                               status=Infectious; sector=_}
                                                 ->
                                                if
@@ -659,9 +630,7 @@ let sector =
                                                                     Pervasives.(>)
                                                                     (self_sector__val_rml_80).sector_time
                                                                     (Pervasives.(+)
-                                                                    (Pervasives.(!)
-                                                                    t0) 
-                                                                    gamma)
+                                                                    t0 gamma)
                                                                     then
                                                                     if
                                                                     Pervasives.(!=)
@@ -770,62 +739,51 @@ let rec long_range_interaction =
                   | cell_array__val_rml_98  ->
                       (function
                         | sector_array__val_rml_99  ->
-                            (let maxx__val_rml_100 = Pervasives.(!) maxx  in
-                              let maxy__val_rml_101 = Pervasives.(!) maxy  in
-                                let x__val_rml_102 =
-                                      (cell__val_rml_97).cell_x
-                                   in
-                                  let y__val_rml_103 =
-                                        (cell__val_rml_97).cell_y
-                                     in
-                                    let rand_x__val_rml_104 =
-                                          Random.int maxx__val_rml_100
-                                       in
-                                      let rand_y__val_rml_105 =
-                                            Random.int maxy__val_rml_101
+                            (let x__val_rml_102 = (cell__val_rml_97).cell_x 
+                              in
+                              let y__val_rml_103 = (cell__val_rml_97).cell_y 
+                                in
+                                let rand_x__val_rml_104 = Random.int maxx  in
+                                  let rand_y__val_rml_105 = Random.int maxy 
+                                    in
+                                    if
+                                      Pervasives.(&&)
+                                        (Pervasives.(<>)
+                                          x__val_rml_102 rand_x__val_rml_104)
+                                        (Pervasives.(<>)
+                                          y__val_rml_103 rand_y__val_rml_105)
+                                      then
+                                      (let other__val_rml_106 =
+                                             Array.get
+                                               (Array.get
+                                                 cell_array__val_rml_98
+                                                 rand_x__val_rml_104)
+                                               rand_y__val_rml_105
                                          in
                                         if
-                                          Pervasives.(&&)
-                                            (Pervasives.(<>)
-                                              x__val_rml_102
-                                              rand_x__val_rml_104)
-                                            (Pervasives.(<>)
-                                              y__val_rml_103
-                                              rand_y__val_rml_105)
-                                          then
-                                          (let other__val_rml_106 =
-                                                 Array.get
-                                                   (Array.get
-                                                     cell_array__val_rml_98
-                                                     rand_x__val_rml_104)
-                                                   rand_y__val_rml_105
+                                          Pervasives.(=)
+                                            (get_sector_status
+                                              other__val_rml_106
+                                              sector_array__val_rml_99)
+                                            C
+                                          then () else
+                                          (let other_activation__val_rml_107
+                                                 =
+                                                 (other__val_rml_106).cell_activation
                                              in
-                                            if
-                                              Pervasives.(=)
-                                                (get_sector_status
-                                                  other__val_rml_106
-                                                  sector_array__val_rml_99)
-                                                C
-                                              then () else
-                                              (let other_activation__val_rml_107
-                                                     =
-                                                     (other__val_rml_106).cell_activation
-                                                 in
-                                                Lco_ctrl_tree_record.rml_expr_emit_val
-                                                  (cell__val_rml_97).cell_activation
-                                                  (make_info
-                                                    Long_Lange
-                                                    other__val_rml_106);
-                                                  Lco_ctrl_tree_record.rml_expr_emit_val
-                                                    other_activation__val_rml_107
-                                                    (make_info
-                                                      Long_Lange
-                                                      cell__val_rml_97)))
-                                          else
-                                          long_range_interaction
-                                            cell__val_rml_97
-                                            cell_array__val_rml_98
-                                            sector_array__val_rml_99)
+                                            Lco_ctrl_tree_record.rml_expr_emit_val
+                                              (cell__val_rml_97).cell_activation
+                                              (make_info
+                                                Long_Range other__val_rml_106);
+                                              Lco_ctrl_tree_record.rml_expr_emit_val
+                                                other_activation__val_rml_107
+                                                (make_info
+                                                  Long_Range cell__val_rml_97)))
+                                      else
+                                      long_range_interaction
+                                        cell__val_rml_97
+                                        cell_array__val_rml_98
+                                        sector_array__val_rml_99)
                         )
                   )
             ) 
@@ -857,12 +815,10 @@ let cell =
                                                                    ()  ->
                                                                     ((Pervasives.(/)
                                                                     x__val_rml_111
-                                                                    (Pervasives.(!)
-                                                                    sectormaxx)),
+                                                                    sectormaxx),
                                                                     (Pervasives.(/)
                                                                     y__val_rml_112
-                                                                    (Pervasives.(!)
-                                                                    sectormaxy)))
+                                                                    sectormaxy))
                                                                    )
                                                                  (function
                                                                    | 
@@ -907,17 +863,40 @@ let cell =
                                                                     cell_array__val_rml_114
                                                                     )))
                                                                     (Lco_ctrl_tree_record.rml_loop
-                                                                    (Lco_ctrl_tree_record.rml_seq
+                                                                    (Lco_ctrl_tree_record.rml_def
+                                                                    (function
+                                                                    | ()  ->
+                                                                    get_sector_status
+                                                                    self__val_rml_118
+                                                                    sector_array__val_rml_115
+                                                                    )
+                                                                    (function
+                                                                    | own_sector__val_rml_119
+                                                                     ->
+                                                                    Lco_ctrl_tree_record.rml_seq
                                                                     (Lco_ctrl_tree_record.rml_compute
                                                                     (function
                                                                     | ()  ->
-                                                                    long_range_interaction
+                                                                    if
+                                                                    Pervasives.(||)
+                                                                    (Pervasives.(&&)
+                                                                    (Pervasives.(>=)
+                                                                    (Pervasives.(-)
+                                                                    (self__val_rml_118).time
+                                                                    (self__val_rml_118).infectious_time)
+                                                                    1)
+                                                                    (self__val_rml_118).compliant)
+                                                                    (Pervasives.(=)
+                                                                    own_sector__val_rml_119
+                                                                    C) then
+                                                                    () else
+                                                                    (long_range_interaction
                                                                     self__val_rml_118
                                                                     cell_array__val_rml_114
                                                                     sector_array__val_rml_115;
                                                                     activate_neighborhood
                                                                     self__val_rml_118
-                                                                    (self__val_rml_118).cell_neighborhood
+                                                                    (self__val_rml_118).cell_neighborhood)
                                                                     ))
                                                                     (Lco_ctrl_tree_record.rml_def
                                                                     (function
@@ -931,9 +910,10 @@ let cell =
                                                                     sector_id__val_rml_117)
                                                                     )
                                                                     (function
-                                                                    | sector__val_rml_119
+                                                                    | sector__val_rml_120
                                                                      ->
                                                                     Lco_ctrl_tree_record.rml_seq
+                                                                    (Lco_ctrl_tree_record.rml_seq
                                                                     (Lco_ctrl_tree_record.rml_compute
                                                                     (function
                                                                     | ()  ->
@@ -943,22 +923,11 @@ let cell =
                                                                     Infectious
                                                                     then
                                                                     Lco_ctrl_tree_record.rml_expr_emit_val
-                                                                    (sector__val_rml_119).sector_presence
+                                                                    (sector__val_rml_120).sector_presence
                                                                     (self__val_rml_118).cell_status
                                                                     else 
                                                                     () ))
-                                                                    (Lco_ctrl_tree_record.rml_def
-                                                                    (function
-                                                                    | ()  ->
-                                                                    get_sector_status
-                                                                    self__val_rml_118
-                                                                    sector_array__val_rml_115
-                                                                    )
-                                                                    (function
-                                                                    | own_sector__val_rml_120
-                                                                     ->
-                                                                    Lco_ctrl_tree_record.rml_seq
-                                                                    Lco_ctrl_tree_record.rml_pause
+                                                                    Lco_ctrl_tree_record.rml_pause)
                                                                     (Lco_ctrl_tree_record.rml_compute
                                                                     (function
                                                                     | ()  ->
@@ -966,7 +935,14 @@ let cell =
                                                                     self__val_rml_118
                                                                     sector_array__val_rml_115;
                                                                     (let 
-                                                                    interactions__val_rml_121
+                                                                    own_sector__val_rml_121
+                                                                    =
+                                                                    get_sector_status
+                                                                    self__val_rml_118
+                                                                    sector_array__val_rml_115
+                                                                     in
+                                                                    let 
+                                                                    interactions__val_rml_122
                                                                     =
                                                                     Lco_ctrl_tree_record.rml_pre_value
                                                                     activation__sig_116
@@ -974,11 +950,10 @@ let cell =
                                                                     if
                                                                     Pervasives.(<)
                                                                     (self__val_rml_118).time
-                                                                    (Pervasives.(!)
-                                                                    t0) then
+                                                                    t0 then
                                                                     ebola
                                                                     self__val_rml_118
-                                                                    interactions__val_rml_121
+                                                                    interactions__val_rml_122
                                                                     else
                                                                     if
                                                                     Pervasives.(||)
@@ -990,21 +965,21 @@ let cell =
                                                                     1)
                                                                     (self__val_rml_118).compliant)
                                                                     (Pervasives.(=)
-                                                                    own_sector__val_rml_120
+                                                                    own_sector__val_rml_121
                                                                     C) then
                                                                     isolated
                                                                     self__val_rml_118
                                                                     else
                                                                     post_ebola
                                                                     self__val_rml_118
-                                                                    interactions__val_rml_121
+                                                                    interactions__val_rml_122
                                                                     sector_array__val_rml_115;
                                                                     self__val_rml_118.time
                                                                     <-
                                                                     Pervasives.(+)
                                                                     (self__val_rml_118).time
                                                                     1) )) ))
-                                                                    )))) )
+                                                                    ))) )
                                                                    )
                                                            )
                                                    ):
@@ -1020,24 +995,20 @@ let cell =
 ;;
 let cell_array_create =
       (function
-        | tmp__val_rml_123  ->
-            Array.make_matrix
-              (Pervasives.(!) maxx) (Pervasives.(!) maxy) tmp__val_rml_123
-        ) 
+        | tmp__val_rml_124  -> Array.make_matrix maxx maxy tmp__val_rml_124 )
+
 ;;
 let sector_array_create =
       (function
-        | tmp__val_rml_125  ->
-            Array.make_matrix
-              (Pervasives.(!) sectornumber)
-              (Pervasives.(!) sectornumber) tmp__val_rml_125
+        | tmp__val_rml_126  ->
+            Array.make_matrix sector_number sector_number tmp__val_rml_126
         ) 
 ;;
 let get_status =
       (function
-        | i__val_rml_127  ->
+        | i__val_rml_128  ->
             (function
-              | j__val_rml_128  ->
+              | j__val_rml_129  ->
                   if Pervasives.(<) (Random.float 1.) 0.0002 then Infectious
                     else
                     if Pervasives.(<) (Random.float 1.) 0.0002 then Exposed
@@ -1047,54 +1018,48 @@ let get_status =
 ;;
 let cellular_automaton_start =
       (function
-        | draw_cell__val_rml_130  ->
+        | draw_cell__val_rml_131  ->
             (function
-              | get_neighbors__val_rml_131  ->
+              | get_neighbors__val_rml_132  ->
                   (function
-                    | get_status__val_rml_132  ->
+                    | get_status__val_rml_133  ->
                         (function
-                          | cell_array__val_rml_133  ->
+                          | cell_array__val_rml_134  ->
                               (function
-                                | sector_array__val_rml_134  ->
+                                | sector_array__val_rml_135  ->
                                     ((function
                                        | ()  ->
                                            Lco_ctrl_tree_record.rml_fordopar
                                              (function | ()  -> (0) )
                                              (function
-                                               | ()  ->
-                                                   Pervasives.(-)
-                                                     (Pervasives.(!) maxx) 1
+                                               | ()  -> Pervasives.(-) maxx 1
                                                )
                                              true
                                              (function
-                                               | i__val_rml_135  ->
+                                               | i__val_rml_136  ->
                                                    Lco_ctrl_tree_record.rml_fordopar
                                                      (function | ()  -> (0) )
                                                      (function
                                                        | ()  ->
                                                            Pervasives.(-)
-                                                             (Pervasives.(!)
-                                                               maxy)
-                                                             1
+                                                             maxy 1
                                                        )
                                                      true
                                                      (function
-                                                       | j__val_rml_136  ->
+                                                       | j__val_rml_137  ->
                                                            Lco_ctrl_tree_record.rml_if
                                                              (function
                                                                | ()  ->
                                                                    Pervasives.(&&)
                                                                     (Pervasives.(=)
                                                                     (Pervasives.(mod)
-                                                                    j__val_rml_136
-                                                                    (Pervasives.(!)
-                                                                    sectormaxx))
+                                                                    j__val_rml_137
+                                                                    sectormaxx)
                                                                     (0))
                                                                     (Pervasives.(=)
                                                                     (Pervasives.(mod)
-                                                                    i__val_rml_135
-                                                                    (Pervasives.(!)
-                                                                    sectormaxy))
+                                                                    i__val_rml_136
+                                                                    sectormaxy)
                                                                     (0))
                                                                )
                                                              (Lco_ctrl_tree_record.rml_par
@@ -1103,15 +1068,15 @@ let cellular_automaton_start =
                                                                    | 
                                                                    ()  ->
                                                                     cell
-                                                                    draw_cell__val_rml_130
-                                                                    get_neighbors__val_rml_131
-                                                                    i__val_rml_135
-                                                                    j__val_rml_136
-                                                                    (get_status__val_rml_132
-                                                                    i__val_rml_135
-                                                                    j__val_rml_136)
-                                                                    cell_array__val_rml_133
-                                                                    sector_array__val_rml_134
+                                                                    draw_cell__val_rml_131
+                                                                    get_neighbors__val_rml_132
+                                                                    i__val_rml_136
+                                                                    j__val_rml_137
+                                                                    (get_status__val_rml_133
+                                                                    i__val_rml_136
+                                                                    j__val_rml_137)
+                                                                    cell_array__val_rml_134
+                                                                    sector_array__val_rml_135
                                                                    ))
                                                                (Lco_ctrl_tree_record.rml_run
                                                                  (function
@@ -1119,28 +1084,26 @@ let cellular_automaton_start =
                                                                    ()  ->
                                                                     sector
                                                                     ((Pervasives.(/)
-                                                                    i__val_rml_135
-                                                                    (Pervasives.(!)
-                                                                    sectormaxx)),
+                                                                    i__val_rml_136
+                                                                    sectormaxx),
                                                                     (Pervasives.(/)
-                                                                    j__val_rml_136
-                                                                    (Pervasives.(!)
-                                                                    sectormaxy)))
-                                                                    sector_array__val_rml_134
+                                                                    j__val_rml_137
+                                                                    sectormaxy))
+                                                                    sector_array__val_rml_135
                                                                    )))
                                                              (Lco_ctrl_tree_record.rml_run
                                                                (function
                                                                  | ()  ->
                                                                     cell
-                                                                    draw_cell__val_rml_130
-                                                                    get_neighbors__val_rml_131
-                                                                    i__val_rml_135
-                                                                    j__val_rml_136
-                                                                    (get_status__val_rml_132
-                                                                    i__val_rml_135
-                                                                    j__val_rml_136)
-                                                                    cell_array__val_rml_133
-                                                                    sector_array__val_rml_134
+                                                                    draw_cell__val_rml_131
+                                                                    get_neighbors__val_rml_132
+                                                                    i__val_rml_136
+                                                                    j__val_rml_137
+                                                                    (get_status__val_rml_133
+                                                                    i__val_rml_136
+                                                                    j__val_rml_137)
+                                                                    cell_array__val_rml_134
+                                                                    sector_array__val_rml_135
                                                                  ))
                                                        )
                                                )
@@ -1165,68 +1128,64 @@ let main =
                              " "
                              (Pervasives.(^)
                                (Pervasives.string_of_int
-                                 (Pervasives.( * )
-                                   (Pervasives.(!) maxx)
-                                   (Pervasives.(!) zoom)))
+                                 (Pervasives.( * ) maxx zoom))
                                (Pervasives.(^)
                                  "x"
                                  (Pervasives.string_of_int
-                                   (Pervasives.( * )
-                                     (Pervasives.(!) maxy)
-                                     (Pervasives.(!) zoom))))));
+                                   (Pervasives.( * ) maxy zoom)))));
                          Graphics.auto_synchronize false
                    ))
                (Lco_ctrl_tree_record.rml_signal
                  (function
-                   | tmp_cell__sig_138  ->
+                   | tmp_cell__sig_139  ->
                        Lco_ctrl_tree_record.rml_signal
                          (function
-                           | tmp_sector_p__sig_139  ->
+                           | tmp_sector_p__sig_140  ->
                                Lco_ctrl_tree_record.rml_signal
                                  (function
-                                   | tmp_sector_a__sig_140  ->
+                                   | tmp_sector_a__sig_141  ->
                                        Lco_ctrl_tree_record.rml_def
                                          (function
                                            | ()  ->
                                                new_cell
                                                  5
                                                  5
-                                                 tmp_cell__sig_138
+                                                 tmp_cell__sig_139
                                                  Susceptible ((0), (0))
                                            )
                                          (function
-                                           | dummy_cell__val_rml_141  ->
+                                           | dummy_cell__val_rml_142  ->
                                                Lco_ctrl_tree_record.rml_def
                                                  (function
                                                    | ()  ->
                                                        new_sector
                                                          C
-                                                         tmp_sector_p__sig_139
-                                                         tmp_sector_a__sig_140
+                                                         tmp_sector_p__sig_140
+                                                         tmp_sector_a__sig_141
                                                          ((0), (0))
                                                    )
                                                  (function
-                                                   | dummy_sector__val_rml_142
+                                                   | dummy_sector__val_rml_143
                                                         ->
                                                        Lco_ctrl_tree_record.rml_def
                                                          (function
                                                            | ()  ->
                                                                cell_array_create
-                                                                 dummy_cell__val_rml_141
+                                                                 dummy_cell__val_rml_142
                                                            )
                                                          (function
-                                                           | cell_array__val_rml_143
+                                                           | cell_array__val_rml_144
                                                                 ->
                                                                Lco_ctrl_tree_record.rml_def
                                                                  (function
                                                                    | 
                                                                    ()  ->
                                                                     sector_array_create
-                                                                    dummy_sector__val_rml_142
+                                                                    dummy_sector__val_rml_143
                                                                    )
                                                                  (function
                                                                    | 
-                                                                   sector_array__val_rml_144
+                                                                   sector_array__val_rml_145
                                                                      ->
                                                                     Lco_ctrl_tree_record.rml_def
                                                                     (function
@@ -1235,18 +1194,18 @@ let main =
                                                                     color_of_status
                                                                     )
                                                                     (function
-                                                                    | draw__val_rml_145
+                                                                    | draw__val_rml_146
                                                                      ->
                                                                     Lco_ctrl_tree_record.rml_par
                                                                     (Lco_ctrl_tree_record.rml_run
                                                                     (function
                                                                     | ()  ->
                                                                     cellular_automaton_start
-                                                                    draw__val_rml_145
+                                                                    draw__val_rml_146
                                                                     get_von_neumann_neighbors
                                                                     get_status
-                                                                    cell_array__val_rml_143
-                                                                    sector_array__val_rml_144
+                                                                    cell_array__val_rml_144
+                                                                    sector_array__val_rml_145
                                                                     ))
                                                                     (Lco_ctrl_tree_record.rml_loop
                                                                     (Lco_ctrl_tree_record.rml_seq
