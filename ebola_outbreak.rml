@@ -1,3 +1,4 @@
+open Printf
 
 (********************************************************************)
 (*  Status  *)
@@ -61,9 +62,9 @@ let sector_number = maxx / sectormaxx
 let nox = false
 let zoom = 4
 
-let delta = 10 (* steps for E -> I *)
-let gamma = 7 (* steps for I -> R *)
-let t0 = 30 (* time before the policy imposed *)
+let delta = 7 (* steps for E -> I *)
+let gamma = 10 (* steps for I -> R *)
+let t0 = 50 (* time before the policy imposed *)
 let compliance = 0.4
 
 (**************************************************************************)
@@ -209,31 +210,7 @@ let get_sector_neighbors sector sector_array =
 (* cell behaviors                                                         *)
 (**************************************************************************)
 
-(* Behavior prior to policy introduction *)
-let ebola cell interactions = 
-  let result = ref Susceptible in 
-  List.iter
-    (fun info -> 
-      match info with
-      | {origin = Long_Range; status = Infectious; sector = _} -> 
-          (* Long-range interaction *)
-          if (Random.float 1.0 < 0.015) then result := Exposed
-      | {origin = _; status = Infectious; sector = _} -> 
-          (* Neighbor interaction *)
-          if (Random.float 1.0 < 0.18) then result := Exposed
-      | {origin = _; status = _; sector = _} -> ()
-    )
-    interactions;
-
-    cell.cell_status <-
-      match cell.cell_status with
-      | Susceptible -> if !result = Exposed then (cell.exposed_time <- cell.time; Exposed) else Susceptible
-      | Exposed ->     if (cell.time - cell.exposed_time) < delta then Exposed else (cell.infectious_time <- cell.time; Infectious)
-      | Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
-      | Removed ->   Removed
-      
-(* Behavior after policy introductions *)
-let post_ebola cell interactions sector_array= 
+let ebola cell interactions sector_array= 
   let result = ref Susceptible in 
   List.iter
     (fun info ->
@@ -271,6 +248,33 @@ let isolated cell =
       | Infectious ->  if (cell.time - cell.infectious_time) < gamma then Infectious else Removed
       | Removed ->   Removed
 
+
+(**************************************************************************)
+(* observer                                                               *)
+(**************************************************************************)
+
+let process observer cell_array sector_array seir_signals = 
+  let s,e,i,r = seir_signals in
+  let current_time = ref 0 in
+  let no_infected = ref 0 in
+  pause;
+  loop
+    (* Signal gathering phase *)
+    pause;
+    (* Update based on prior step *)
+    let stats = [!current_time; pre ?s; pre ?e; pre ?i; pre ?r] in
+    List.iter( fun num -> print_int num; print_string " "
+    ) stats;
+(*     print_int (pre ?i); print_string " "; print_int !current_time; *)
+    print_endline "";
+    current_time := !current_time + 1;
+    if (pre ?i) = 0 then
+      if !no_infected > (delta+1) then halt
+      else no_infected := !no_infected + 1
+    else no_infected := 0
+  end
+
+
 (**************************************************************************)
 (* sector process                                                         *)
 (**************************************************************************)
@@ -294,10 +298,10 @@ let process sector coordinate sector_array =
   self_sector.sector_neighborhood <- (get_sector_neighbors self_sector sector_array);
   
   loop
-    (* Emitting/Receiving stage *)
+    (* Emitting/Receiving signal phase *)
     activate_sector_neighborhood self_sector self_sector.sector_neighborhood;
     pause;
-    (* Update based on prior time step *)
+    (* Update phase based on prior time step *)
     let sector_reports = pre ?sector_activation in
 
     if self_sector.sector_time > t0+gamma then 
@@ -337,7 +341,7 @@ let get_sector_status cell sector_array =
   let own_sector = sector_array.(x).(y).sector_status in
   own_sector
 
-let rec long_range_interaction cell cell_array sector_array=
+let rec long_range_interaction cell cell_array sector_array =
 	let maxx = maxx in 
 	let maxy = maxy in
 	let x = cell.cell_x  in
@@ -356,20 +360,22 @@ let rec long_range_interaction cell cell_array sector_array=
   	else long_range_interaction cell cell_array sector_array
 
 let process cell draw_cell
-    x y status_init cell_array sector_array=
+    x y status_init cell_array sector_array seir_signals =
   signal activation in
   let sector_id = (x/(sectormaxx),y/(sectormaxy)) in 
   let self = new_cell x y activation status_init sector_id in
+  let s,e,i,r = seir_signals in
   cell_array.(x).(y) <- self; (* At first, cell_array.(x).(y) contains a temporary cell. This line puts a new cell into it*)
   draw_cell self;
   pause;
   self.cell_neighborhood <- get_cell_neighbors self cell_array;
 
   loop
-    (* Emitting/Receiving stage *)
+    (* Emitting/Receiving signal phase *)
     let own_sector = get_sector_status self sector_array in
+
     (* Check for isolation => no visits made *)
-    if (((self.time - self.infectious_time) >= 1) && self.compliant) or (own_sector = C) 
+    if (((self.time - self.infectious_time) >= 1) && self.compliant && (self.time > t0)) or (own_sector = C) 
       then ()
     else (
   	  long_range_interaction self cell_array sector_array;
@@ -377,25 +383,30 @@ let process cell draw_cell
       activate_neighborhood self (self.cell_neighborhood)
     );
 
-    (* Notify sector of I status *)
+    (* Notify others of status *)
     (* TODO: Should this be postponed one step so that it takes a step to notice? *)
     let sector = sector_array.(fst sector_id).(snd sector_id) in
-    if self.cell_status = Infectious then
-      emit sector.sector_presence self.cell_status;
+    begin match self.cell_status with
+      | Susceptible -> emit s 1
+      | Exposed -> emit e 1
+      | Infectious -> emit i 1; emit sector.sector_presence self.cell_status
+      | Removed -> emit r 1
+    end
+    ;
     
     pause;
-    (* Update based on prior time step *)
+    (* Update phase based on prior time step *)
     draw_cell self sector_array;
     
     let own_sector = get_sector_status self sector_array in
     let interactions = pre ?activation in
     if (self.time < t0) then
-      ebola self interactions
+      ebola self interactions sector_array
     else
       if (((self.time - self.infectious_time) >= 1) && self.compliant) or (own_sector = C) then (* Infected for 1+ day *)
         isolated self
       else
-        post_ebola self interactions sector_array;
+        ebola self interactions sector_array;
 
     self.time <- self.time + 1;
   end
@@ -404,6 +415,7 @@ let process cell draw_cell
 (**************************************************************************)
 (* cellular automaton                                                     *)
 (**************************************************************************)
+
 let cell_array_create tmp =
   Array.make_matrix maxx maxy tmp
 
@@ -411,24 +423,22 @@ let sector_array_create tmp =
   Array.make_matrix sector_number sector_number tmp
 
 let get_status i j =
-	(* For testing the long-range infection *)
-	(*if (i = 100)&&(j = 100) then Infectious, () else Susceptible, ()*)
 	if Random.float 1.0 < 0.0002 then Infectious 
   else if Random.float 1.0 < 0.0002 then Exposed 
   else Susceptible
 
 
 let process cellular_automaton_start
-    draw_cell cell_array sector_array =
+    draw_cell cell_array sector_array seir_signals =
   for i = 0 to maxx - 1 dopar
     for j = 0 to maxy - 1 dopar
       if (j mod (sectormaxx) = 0) && (i mod (sectormaxy) = 0) then 
-        ( run (cell draw_cell i j (get_status i j) cell_array sector_array)
+        ( run (cell draw_cell i j (get_status i j) cell_array sector_array seir_signals)
           ||
           run (sector (i/(sectormaxx), j/(sectormaxy)) sector_array)
         )
       else 
-        ( run (cell draw_cell i j (get_status i j) cell_array sector_array)
+        ( run (cell draw_cell i j (get_status i j) cell_array sector_array seir_signals)
         )
      
     done
@@ -438,7 +448,13 @@ let process cellular_automaton_start
 (* main                                                                   *)
 (**************************************************************************)
 
-
+let build_seir =
+  signal s default 0 gather (+) in
+  signal e default 0 gather (+) in
+  signal i default 0 gather (+) in
+  signal r default 0 gather (+) in 
+  let seir_signals = (s,e,i,r) in
+  seir_signals
 
 let process main =
 	Random.self_init();
@@ -449,6 +465,7 @@ let process main =
   signal tmp_cell in
   signal tmp_sector_p in
   signal tmp_sector_a in
+  let seir_signals = build_seir in
 	let dummy_cell = (new_cell 5 5 tmp_cell Susceptible (0,0)) in
   let dummy_sector = (new_sector C tmp_sector_p tmp_sector_a (0,0)) in 
 		let cell_array = cell_array_create dummy_cell in
@@ -458,8 +475,11 @@ let process main =
 		run (cellular_automaton_start
 		       draw
 	       	 cell_array
-           sector_array);
+           sector_array
+           seir_signals);
 		||
+    run (observer cell_array sector_array seir_signals);
+    ||
 		loop
 			ignore (Graphics.wait_next_event [Graphics.Poll]);
 			Graphics.synchronize ();
