@@ -27,19 +27,25 @@ def main():
 
 	    for f in files:
 	    	data = data_import("c_"+postfix+"/"+f)
+	    	last = data[-1]
+	    	# for padding
+	    	data = data + [last for i in range(100)]
 	    	bundle.append(data[:150])
 
 	    # bundle should look like: [[0,4,6,7,7], [1,4,5,6,8], [0,0,3,4,9],..]
 	    points = average(zip(*bundle))
 
-	    plt.plot(points, linestyle = "-", label="compliance rate: "+postfix[0]+"."+postfix[1])
+	    # for plotting cumulative
+	    cumulative = np.cumsum(points)
+
+	    plt.plot(cumulative, linestyle = "-", label="compliance rate: "+postfix[0]+"."+postfix[1])
 
 	plt.legend(loc=2)
 	plt.axvline(x = 50, color = "r")
 	plt.xlabel("time")
-	plt.ylabel("Number of Infectious cells")
+	plt.ylabel("Number of cumulative infectious cells")
 	plt.xlim([0,140])
-	plt.ylim([0,500])
+	plt.ylim([0,5000])
 	plt.show()
 
 
