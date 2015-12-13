@@ -51,8 +51,8 @@ type neighborhood = info list
 (********************************************************************)
 (* Constants                                                       *)
 (********************************************************************)
-let maxx = 200
-let maxy = 200
+let maxx = 300
+let maxy = 300
 
 let sectormaxx = 10
 let sectormaxy = 10
@@ -62,10 +62,13 @@ let sector_number = maxx / sectormaxx
 let nox = false
 let zoom = 4
 
-let delta = 7 (* steps for E -> I *)
-let gamma = 10 (* steps for I -> R *)
+let delta = 10 (* steps for E -> I *)
+let gamma = 7 (* steps for I -> R *)
+let tau = 0.18 (* the propability that an infectious cell infects its neighbour*)
+let eta = 0.015 (* the propability that an infectious cell infects a cell in a long range intereaction *)
+
 let t0 = 50 (* time before the policy imposed *)
-let compliance = 0.4
+let compliance = 1.0
 
 (**************************************************************************)
 (* cell                                                                   *)
@@ -221,11 +224,11 @@ let ebola cell interactions sector_array=
       | _ -> 
       (match info with
         | {origin = Long_Range; status = Infectious; sector = _} -> 
-            (* Long-range interaction *)
-            if (Random.float 1.0 < 0.015) then result := Exposed
+            (* Long-range interaction. eta = 0.015 *)
+            if (Random.float 1.0 < eta) then result := Exposed
         | {origin = _; status = Infectious; sector = _} -> 
-            (* Neighbor interaction *)
-            if (Random.float 1.0 < 0.18) then result := Exposed
+            (* Neighbor interaction. tau = 0.18*)
+            if (Random.float 1.0 < tau) then result := Exposed
         | {origin = _; status = _; sector = _} -> ()
       )
       end
